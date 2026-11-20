@@ -43,22 +43,24 @@ flowchart LR
 
 ## Decisões de implementação
 
-Registre seu plano aqui antes de editar o código.
-
-- Decisão da camada de apresentação:
-- Decisão da camada de lógica:
-- Decisão da camada de dados:
-- Abordagem para registro de atividades:
-- Abordagem para gerenciamento de equipes:
-- Abordagem para o placar:
-- Abordagem para sugestões de treino:
+- **Camada de apresentação:** manter componentes React responsáveis pela exibição e usar o cliente compartilhado da API para chamadas HTTP. Cada rota deve apresentar estados acessíveis de carregamento, vazio e erro, além dos dados recebidos.
+- **Camada de lógica:** manter rotas Express como fronteira HTTP e concentrar regras de negócio nos serviços. Validar entradas e referências antes das operações de persistência e retornar erros 4xx intencionais para dados inválidos ou recursos inexistentes.
+- **Camada de dados:** usar modelos Mongoose para validar campos obrigatórios, referências e valores permitidos. Fazer o seed pela aplicação, de forma idempotente, preservando registros não relacionados e mantendo as relações entre pessoas, equipes e atividades.
+- **Registro de atividades:** validar IDs e existência da pessoa e da equipe antes de criar; persistir os dados enviados e calcular pontos e data da atividade no backend. Entradas inválidas não devem criar registros nem provocar erros 500 de conversão.
+- **Gerenciamento de equipes:** exigir nome e mascote, manter a lista de integrantes como array e atualizar as relações de equipe e pessoa de forma consistente ao criar/listar equipes.
+- **Placar:** somar os pontos das atividades por equipe, ordenar do maior total para o menor e atribuir posições iniciadas em 1.
+- **Sugestões de treino:** localizar a pessoa pelo e-mail, considerar sua meta e atividade recente para priorizar treinos compatíveis e explicar a recomendação em `reason`; retornar 4xx quando a pessoa não existir.
 
 ## Plano de testes
 
-Registre os comandos executados e o significado de cada falha.
+Executar nesta ordem para validar primeiro os contratos dos quais as camadas seguintes dependem:
 
-- Testes da camada de dados: `npm run test:data --prefix octofit-tracker/backend`
-- Testes da API: `npm run test:api --prefix octofit-tracker/backend`
-- Testes do frontend: `npm test --prefix octofit-tracker/frontend`
-- Compilação do backend: `npm run build --prefix octofit-tracker/backend`
-- Compilação do frontend: `npm run build --prefix octofit-tracker/frontend`
+| Etapa | Comando | O que valida / como interpretar falhas |
+| --- | --- | --- |
+| Dados | `npm run test:data --prefix octofit-tracker/backend` | Valida campos obrigatórios dos modelos e seed idempotente. Falhas apontam regras de schema ausentes/incorretas ou seed que não cria e relaciona os dados esperados, ou que altera registros não relacionados. |
+| API | `npm run test:api --prefix octofit-tracker/backend` | Valida criação e listagem de atividades/equipes, placar e sugestões. Falhas indicam validação HTTP, persistência, cálculo/agregação ou seleção de sugestões incompatível com o contrato. |
+| Frontend | `npm test --prefix octofit-tracker/frontend` | Valida exibição dos dados e estados acessíveis por rota. Falhas indicam consumo/representação incorretos da API ou ausência de estado de carregamento, vazio ou erro. |
+| Build do backend | `npm run build --prefix octofit-tracker/backend` | Verifica tipos e compilação TypeScript; falhas indicam incompatibilidades de tipos ou erros estáticos no backend. |
+| Build do frontend | `npm run build --prefix octofit-tracker/frontend` | Verifica tipos e build do Vite; falhas indicam incompatibilidades de tipos ou erros de compilação da interface. |
+
+**Resultado-base informado:** os testes de API falham em 4/4 casos; os testes de dados falham em 4/5 (o seed idempotente passa); os testes do frontend falham em 15/15. Portanto, 23 dos 24 testes listados falham no estado reportado. O último comando informado para o frontend terminou com código 1. Reexecutar os comandos acima após cada implementação para atualizar esse diagnóstico; uma falha de build deve ser tratada como bloqueio da respectiva camada, mesmo que os testes de comportamento passem.
