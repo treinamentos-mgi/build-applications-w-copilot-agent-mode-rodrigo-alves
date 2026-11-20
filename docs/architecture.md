@@ -43,22 +43,34 @@ flowchart LR
 
 ## Decisões de implementação
 
-Registre seu plano aqui antes de editar o código.
+- Decisão da camada de apresentação: manter componentes React responsáveis pela exibição e usar o cliente compartilhado da API para chamadas HTTP. Cada rota deve apresentar estados acessíveis de carregamento, vazio e erro, além dos dados recebidos, sem duplicar regras de negócio da API.
+- **Consumo e estados no frontend:** as quatro telas compartilham um componente que solicita coleções pelo cliente HTTP, valida o formato da lista e apresenta carregamento com `role="status"`, falhas com `role="alert"` e mensagens de lista vazia. Respostas recebidas após a desmontagem são ignoradas. Tipos conhecidos de atividade são apresentados em português; equipes mostram a quantidade de integrantes, pois a API fornece referências, não nomes.
+- **Pessoa para sugestões:** a tela usa `mona@example.com`, presente no seed, como valor inicial e oferece um campo de e-mail para consultar outra pessoa. O e-mail é codificado no caminho da API, e mudar a pessoa reinicia os estados da consulta.
+- Decisão da camada de lógica: manter rotas Express como fronteira HTTP e concentrar regras de negócio nos serviços. Validar entradas e referências antes das operações de persistência e retornar erros 4xx intencionais para dados inválidos ou recursos inexistentes, preservando caminhos e formatos dos contratos existentes.
+- Decisão da camada de dados: usar modelos Mongoose para validar campos obrigatórios, referências e valores permitidos. Fazer o seed pela aplicação, de forma idempotente, preservando registros não relacionados e mantendo as relações entre pessoas, equipes e atividades.
+- Abordagem para registro de atividades: validar IDs, existência da pessoa e da equipe, tipo não vazio e minutos positivos antes de criar; atribuir um ponto por minuto e registrar a data no backend. Entradas inválidas não criam registros nem provocam erros 500 de conversão.
+- Abordagem para gerenciamento de equipes: exigir nome e mascote, validar e deduplicar os IDs de integrantes e atualizar suas associações, removendo-os das equipes anteriores. Transferências com integrantes em comum são serializadas no processo da API. Essa proteção não abrange múltiplas instâncias; sem transações, falhas intermediárias ainda podem exigir reconciliação.
+- Abordagem para o placar: somar os pontos das atividades por equipe, incluindo equipes sem atividades, ordenar do maior total para o menor e desempatar pelo nome e identificador; atribuir posições sequenciais iniciadas em 1.
+- Abordagem para sugestões de treino: localizar a pessoa pelo e-mail e buscar treinos para sua meta; se não houver, usar o foco da atividade mais recente quando conhecido. Explicar o critério em `reason`, retornar lista vazia quando não houver treino compatível e `404` quando a pessoa não existir.
 
-- Decisão da camada de apresentação:
-- Decisão da camada de lógica:
-- Decisão da camada de dados:
-- Abordagem para registro de atividades:
-- Abordagem para gerenciamento de equipes:
-- Abordagem para o placar:
-- Abordagem para sugestões de treino:
+## Ordem de implementação
+
+1. **Dados:** manter as regras dos esquemas e o seed dentro dos modelos Mongoose e do código de demonstração. A suíte atual passou; não é necessário ampliar essa camada para avançar.
+2. **API:** implementar as regras nas rotas e nos serviços, mantendo os contratos públicos. Corrigir validações HTTP, persistência de atividades/equipes, agregação do placar e explicação das sugestões.
+3. **Apresentação:** conectar os componentes ao cliente compartilhado da API e implementar exibição de dados, carregamento, estado vazio e erro acessível em cada rota.
+4. **Builds:** depois dos contratos comportamentais, executar os builds do backend e do frontend para verificar tipos e compilação.
 
 ## Plano de testes
 
-Registre os comandos executados e o significado de cada falha.
+Executar nesta ordem para validar primeiro os contratos dos quais as camadas seguintes dependem:
 
-- Testes da camada de dados: `npm run test:data --prefix octofit-tracker/backend`
-- Testes da API: `npm run test:api --prefix octofit-tracker/backend`
-- Testes do frontend: `npm test --prefix octofit-tracker/frontend`
-- Compilação do backend: `npm run build --prefix octofit-tracker/backend`
-- Compilação do frontend: `npm run build --prefix octofit-tracker/frontend`
+| Etapa | Comando | O que valida / como interpretar falhas |
+| --- | --- | --- |
+| Testes da camada de dados: | `npm run test:data --prefix octofit-tracker/backend` | Valida campos obrigatórios dos modelos e seed idempotente. Falhas apontam regras de schema ausentes/incorretas ou seed que não cria e relaciona os dados esperados, ou que altera registros não relacionados. |
+| Testes da API: | `npm run test:api --prefix octofit-tracker/backend` | Valida o contrato protegido de criação e listagem, referências, placar e sugestões. Falhas indicam validação HTTP, persistência, cálculo/agregação ou seleção de sugestões incompatível com o contrato. |
+| Testes adicionais do backend: | `npm test --prefix octofit-tracker/backend` | Executa todos os testes de dados e API, incluindo minutos inválidos, mudanças de equipe concorrentes, placar com pontuação zero e sugestões pela atividade recente. |
+| Testes do frontend: | `npm test --prefix octofit-tracker/frontend` | Valida exibição dos dados, estados acessíveis por rota, consulta por e-mail e resposta com formato inválido. Falhas indicam consumo/representação incorretos da API ou ausência de estado de carregamento, vazio ou erro. |
+| Compilação do backend: | `npm run build --prefix octofit-tracker/backend` | Verifica tipos e compilação TypeScript; falhas indicam incompatibilidades de tipos ou erros estáticos no backend. |
+| Compilação do frontend: | `npm run build --prefix octofit-tracker/frontend` | Verifica tipos e build do Vite; falhas indicam incompatibilidades de tipos ou erros de compilação da interface. |
+
+**Status verificado em 2026-11-20:** passaram os 10 testes da API, os 5 testes de dados e os 17 testes do frontend; ambos os builds e a avaliação `step5-final` foram concluídos. Reexecutar as suítes e os builds após alterações nas respectivas camadas.
