@@ -1,6 +1,24 @@
 import mongoose from 'mongoose';
 import { Activity, Team, User, Workout } from '../models/index.js';
 
+const memberLocks = new Map<string, Promise<void>>();
+
+async function withMemberLocks<T>(memberIds: string[], operation: () => Promise<T>): Promise<T> {
+  const pending = memberIds.map((memberId) => memberLocks.get(memberId));
+  let release = () => {};
+  const lock = new Promise<void>((resolve) => { release = resolve; });
+  for (const memberId of memberIds) memberLocks.set(memberId, lock);
+  await Promise.all(pending);
+  try {
+    return await operation();
+  } finally {
+    release();
+    for (const memberId of memberIds) {
+      if (memberLocks.get(memberId) === lock) memberLocks.delete(memberId);
+    }
+  }
+}
+
 export async function listActivities() {
   return Activity.find().lean();
 }
@@ -39,12 +57,14 @@ export async function createTeam(input: unknown) {
   if (await User.countDocuments({ _id: { $in: memberIds } }) !== memberIds.length) {
     throw Object.assign(new Error('Pessoa integrante não encontrada'), { status: 400 });
   }
-  const team = await Team.create({ name: name.trim(), mascot: mascot.trim(), members: memberIds });
-  if (memberIds.length) {
-    await Team.updateMany({ _id: { $ne: team._id }, members: { $in: memberIds } }, { $pull: { members: { $in: memberIds } } });
-    await User.updateMany({ _id: { $in: memberIds } }, { $set: { team: team._id } });
-  }
-  return team;
+  return withMemberLocks(memberIds, async () => {
+    const team = await Team.create({ name: name.trim(), mascot: mascot.trim(), members: memberIds });
+    if (memberIds.length) {
+      await Team.updateMany({ _id: { $ne: team._id }, members: { $in: memberIds } }, { $pull: { members: { $in: memberIds } } });
+      await User.updateMany({ _id: { $in: memberIds } }, { $set: { team: team._id } });
+    }
+    return team;
+  });
 }
 
 export async function getLeaderboard() {

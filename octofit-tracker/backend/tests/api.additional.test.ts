@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
@@ -49,6 +49,33 @@ describe('Cenários adicionais da API', () => {
     expect(response.body.team.members).toHaveLength(1);
     expect((await Team.findById(team._id))?.members).toHaveLength(0);
     expect((await User.findById(user._id))?.team?.toString()).toBe(response.body.team._id);
+  });
+
+  it('mantém a associação consistente em criações concorrentes', async () => {
+    const { user } = await createUserAndTeam();
+    const memberId = user._id.toString();
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const responses = await Promise.all(['Alfa', 'Beta'].map((name) =>
+        request(app).post('/api/teams').send({ name, mascot: name, members: [memberId] }),
+      ));
+      expect(responses.map((response) => response.status)).toEqual([201, 201]);
+      const updatedUser = await User.findById(user._id);
+      const teamsWithMember = await Team.find({ members: user._id });
+      expect(teamsWithMember).toHaveLength(1);
+      expect(teamsWithMember[0]._id.toString()).toBe(updatedUser?.team?.toString());
+    }
+  });
+
+  it('libera o bloqueio de integrantes após erro do banco', async () => {
+    const { user } = await createUserAndTeam();
+    const update = vi.spyOn(Team, 'updateMany').mockRejectedValueOnce(new Error('Falha simulada'));
+    try {
+      const payload = { name: 'Robocats', mascot: 'Hubot', members: [user._id.toString()] };
+      expect((await request(app).post('/api/teams').send(payload)).status).toBe(500);
+      expect((await request(app).post('/api/teams').send(payload)).status).toBe(201);
+    } finally {
+      update.mockRestore();
+    }
   });
 
   it('inclui equipes sem atividades e desempata pelo nome', async () => {
