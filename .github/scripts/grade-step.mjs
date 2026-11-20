@@ -45,7 +45,7 @@ function containsAll(text, words, context) {
   for (const word of words) assertValid(new RegExp(word, 'i').test(text), `${context} must mention ${word}`);
 }
 function hasNonBlankValue(text, label) {
-  const match = text.match(new RegExp(`^- ${label}:[ \t]*(\\S.*)$`, 'im'));
+  const match = text.match(new RegExp(`^- (?:${label}:|\\*\\*${label}:\\*\\*|\\*\\*${label}\\*\\*:)[ \t]*(\\S.*)$`, 'im'));
   assertValid(match && match[1].trim().length > 8, `Architecture plan must complete ${label}`);
 }
 export const checks = {

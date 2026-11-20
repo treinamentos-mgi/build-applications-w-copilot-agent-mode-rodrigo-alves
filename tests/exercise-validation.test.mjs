@@ -255,6 +255,21 @@ test('etapa um exige um plano de arquitetura preenchido', () => {
   assert.doesNotThrow(() => checks['step1-architecture'](root));
 });
 
+test('etapa um aceita rótulos em negrito sem aceitar decisões vazias', () => {
+  const root = completedFixture();
+  const architecture = path.join(root, 'docs/architecture.md');
+  const plain = fs.readFileSync(architecture, 'utf8');
+  for (const format of ['- **$1:** $2', '- **$1**: $2']) {
+    const formatted = plain.replaceAll(/^- ((?:decisão|abordagem).+?): (.+)$/gim, format);
+    fs.writeFileSync(architecture, formatted);
+    assert.doesNotThrow(() => checks['step1-architecture'](root));
+    for (const value of ['', 'curto']) {
+      fs.writeFileSync(architecture, formatted.replace(/^- \*\*Decisão da camada de apresentação.*$/m, format.replace('$1', 'Decisão da camada de apresentação').replace('$2', value)));
+      assert.throws(() => checks['step1-architecture'](root), /Architecture plan must complete Decisão da camada de apresentação/);
+    }
+  }
+});
+
 test('data grader rejects placeholder seed script', () => {
   const root = copyAll();
   assert.throws(() => checks['step2-data'](root), /required validation|placeholder/);
