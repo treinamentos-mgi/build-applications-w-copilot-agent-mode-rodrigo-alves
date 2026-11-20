@@ -272,6 +272,24 @@ test('frontend grader rejects components that bypass the shared API client', () 
   assert.throws(() => checks['step4-frontend'](root), /Teams\.tsx must not call fetch directly/);
 });
 
+test('frontend grader accepts a shared component using the API client but rejects direct fetch', () => {
+  const root = completedFixture();
+  write(root, 'octofit-tracker/frontend/src/components/CapabilityCard.tsx', `import { getJson } from '../api/client.js';\nexport function CapabilityCard() { getJson('/api/activities'); return null; }\n`);
+  for (const component of ['Activities', 'Teams', 'Leaderboard', 'Workouts']) {
+    write(root, `octofit-tracker/frontend/src/components/${component}.tsx`, `import { CapabilityCard } from './CapabilityCard.js';\nexport default function ${component}() { return <CapabilityCard />; }\n`);
+  }
+  assert.doesNotThrow(() => checks['step4-frontend'](root));
+  write(root, 'octofit-tracker/frontend/src/components/CapabilityCard.tsx', `import { getJson } from '../api/client.js';\nexport function CapabilityCard() { getJson('/api/activities'); fetch('/api/teams'); return null; }\n`);
+  assert.throws(() => checks['step4-frontend'](root), /must load data through getJson/);
+});
+
+test('data grader accepts the original Portuguese idempotency contract', () => {
+  const root = completedFixture();
+  const data = path.join(root, 'octofit-tracker/backend/tests/data.contract.test.ts');
+  fs.writeFileSync(data, fs.readFileSync(data, 'utf8').replace('idempotently', 'idempotente'));
+  assert.doesNotThrow(() => checks['step2-data'](root));
+});
+
 test('data grader accepts the Mongoose array form of required validation', () => {
   const root = completedFixture();
   for (const model of ['User', 'Team', 'Activity', 'Workout']) {

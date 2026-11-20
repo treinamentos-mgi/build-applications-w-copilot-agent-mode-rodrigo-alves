@@ -69,7 +69,7 @@ export const checks = {
     assertValid(!/deleteMany\s*\(\s*\{\s*\}\s*\)/.test(seed), 'Seed script must not clear unrelated application records');
     assertValid(readJson(root, 'octofit-tracker/backend/package.json').scripts?.seed, 'Backend package.json must define an npm run seed script');
     const tests = readText(root, 'octofit-tracker/backend/tests/data.contract.test.ts');
-    containsAll(tests, ['seed\\(\\)', 'idempotently', 'sentinel'], 'Seed contract test');
+    containsAll(tests, ['seed\\(\\)', 'idempotently|idempotente', 'sentinel'], 'Seed contract test');
   },
   'step3-api': (root) => {
     const backend = combinedText(root, 'octofit-tracker/backend/src');
@@ -85,10 +85,16 @@ export const checks = {
     requireDependency(pkg, 'react-router-dom');
     const frontend = combinedText(root, 'octofit-tracker/frontend/src');
     containsAll(frontend, ['import.meta.env', '/api/activities', '/api/teams', '/api/leaderboard', '/api/workouts/suggestions/', 'role=[\"\']status', 'role=[\"\']alert', 'sem atividades|nenhuma atividade'], 'Frontend implementation');
+    const sharedClient = /import\s*\{[^}]*\bgetJson\b[^}]*\}\s*from\s*['"][./]*api\/client(?:\.js|\.ts)?['"]/;
+    const sharedPath = path.join(root, 'octofit-tracker/frontend/src/components/CapabilityCard.tsx');
+    const shared = fs.existsSync(sharedPath) ? fs.readFileSync(sharedPath, 'utf8') : '';
+    const usesSharedClient = sharedClient.test(shared) && /\bgetJson\s*[<(]/.test(shared) && !/\bfetch\s*\(/.test(shared);
     for (const component of ['Activities', 'Teams', 'Leaderboard', 'Workouts']) {
       const text = readText(root, `octofit-tracker/frontend/src/components/${component}.tsx`);
-      assertValid(/import\s*\{[^}]*\bgetJson\b[^}]*\}\s*from\s*['"][./]*api\/client(?:\.js|\.ts)?['"]/.test(text) && /\bgetJson\s*[<(]/.test(text), `${component}.tsx must load data through getJson from src/api/client.ts`);
       assertValid(!/\bfetch\s*\(/.test(text), `${component}.tsx must not call fetch directly; use the shared API client`);
+      const direct = sharedClient.test(text) && /\bgetJson\s*[<(]/.test(text);
+      const viaShared = usesSharedClient && /import\s*\{[^}]*\bCapabilityCard\b[^}]*\}\s*from\s*['"]\.\/CapabilityCard(?:\.js|\.tsx)?['"]/.test(text) && /<CapabilityCard\b/.test(text);
+      assertValid(direct || viaShared, `${component}.tsx must load data through getJson from src/api/client.ts`);
     }
   },
   'step5-final': (root) => {

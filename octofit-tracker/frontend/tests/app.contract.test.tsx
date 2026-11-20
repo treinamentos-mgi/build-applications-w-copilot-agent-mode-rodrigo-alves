@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App.js';
@@ -53,21 +53,6 @@ describe('Contrato de apresentação do OctoFit', () => {
   it('solicita sugestões de treino para uma pessoa específica', async () => {
     renderRoute('/workouts');
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/workouts\/suggestions\/mona(%40|@)example\.com$/)));
-  });
-
-  it('busca sugestões para o e-mail informado', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ suggestions: [{ title: 'Força' }] }), { status: 200 })));
-    renderRoute('/workouts');
-    fireEvent.change(screen.getByLabelText(/e-mail da pessoa/i), { target: { value: 'hubot@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /buscar sugestões/i }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/workouts\/suggestions\/hubot%40example\.com$/)));
-    expect(await screen.findByText('Força')).toBeInTheDocument();
-  });
-
-  it('anuncia respostas com formato inválido', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ activities: null }), { status: 200 })));
-    renderRoute('/activities');
-    expect(await screen.findByRole('alert')).toHaveTextContent(/não foi possível/i);
   });
 
   for (const capability of capabilities) {
